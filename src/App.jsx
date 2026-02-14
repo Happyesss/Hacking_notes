@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import './App.css'
 
@@ -44,12 +44,28 @@ import PostConnectionIntro from './pages/postconnection/PostConnectionIntro'
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = localStorage.getItem('theme')
+    return savedTheme || 'dark'
+  })
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => prevTheme === 'dark' ? 'light' : 'dark')
+  }
 
   return (
     <div className="app-layout">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
         ☰
+      </button>
+      <button className="theme-toggle-btn" onClick={toggleTheme} aria-label="Toggle theme">
+        {theme === 'dark' ? '☀️' : '🌙'}
       </button>
       <main className="main-content">
         <Routes>

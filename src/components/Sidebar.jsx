@@ -80,7 +80,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <>
-      {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
+      {isOpen && <div className="sidebar-overlay visible" onClick={onClose} />}
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <span className="logo-icon">⚡</span>

@@ -33,6 +33,38 @@
   --sidebar-width: 300px;
 }
 
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #eaeef2;
+  --bg-sidebar: #f6f8fa;
+  --bg-hover: #eaeef2;
+  --bg-active: #dae0e6;
+  --term-bg: #f6f8fa;
+  --term-header: #eaeef2;
+  --term-green: #1a7f37;
+  --term-red: #cf222e;
+  --term-yellow: #9a6700;
+  --term-blue: #0969da;
+  --term-purple: #8250df;
+  --term-orange: #bc4c00;
+  --term-pink: #bf3989;
+  --term-white: #1f2328;
+  --term-gray: #6e7781;
+  --term-cyan: #0969da;
+  --text-primary: #1f2328;
+  --text-secondary: #656d76;
+  --text-muted: #8c959f;
+  --text-link: #0969da;
+  --accent-green: #1a7f37;
+  --accent-blue: #0969da;
+  --accent-purple: #8250df;
+  --accent-red: #cf222e;
+  --accent-orange: #bc4c00;
+  --border-color: #d0d7de;
+  --border-hover: #b6bcc3;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 
@@ -43,6 +75,14 @@ body {
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Smooth transitions for theme changes */
+*,
+*::before,
+*::after {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
