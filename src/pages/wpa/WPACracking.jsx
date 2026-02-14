@@ -1,143 +1,308 @@
+import React from 'react';
 import Terminal from '../../components/Terminal';
 import InfoBox from '../../components/InfoBox';
-import { Troubleshooting, TroubleItem } from '../../components/Troubleshooting';
+import Diagram from '../../components/Diagram';
 
-export default function WPACracking() {
+const WPACracking = () => {
   return (
-    <div className="content-area">
-      <div className="topic-header">
-        <div className="topic-breadcrumb">WPA / WPA2 Cracking <span>/</span> Cracking</div>
-        <h1>Cracking WPA & WPA2 Using a Wordlist Attack</h1>
-        <p className="topic-desc">With the handshake captured and a wordlist ready, use aircrack-ng to test each password against the captured handshake.</p>
-      </div>
+    <div className="page-content">
+      <h1>Cracking WPA/WPA2 — Aircrack-ng & Hashcat</h1>
 
-      <div className="topic-section">
-        <h2>Cracking with aircrack-ng</h2>
-        <Terminal title="WPA2 Cracking" lines={[
-          [{ type: 'prompt', text: '$ ' }, { type: 'command', text: 'sudo aircrack-ng ' }, { type: 'flag', text: '-w ' }, { type: 'path', text: '/usr/share/wordlists/rockyou.txt ' }, { type: 'flag', text: '-b ' }, { type: 'highlight', text: 'AA:BB:CC:DD:EE:FF ' }, { type: 'string', text: 'wpa_handshake-01.cap' }],
-          [{ type: 'output', text: '' }],
-          [{ type: 'output', text: '                          Aircrack-ng 1.7' }],
-          [{ type: 'output', text: '' }],
-          [{ type: 'output', text: '  [00:01:52] 35684/14344392 keys tested (320.15 k/s)' }],
-          [{ type: 'output', text: '' }],
-          [{ type: 'output', text: '  Time left: 12 hours, 23 minutes, 45 seconds' }],
-          [{ type: 'output', text: '' }],
-          [{ type: 'output', text: '                    ' }, { type: 'highlight', text: 'KEY FOUND! [ password123 ]' }],
-          [{ type: 'output', text: '' }],
-          [{ type: 'output', text: '  Master Key     : A1 B2 C3 D4 E5 F6 ...' }],
-          [{ type: 'output', text: '  Transient Key  : 1A 2B 3C 4D 5E 6F ...' }],
-          [{ type: 'output', text: '' }],
-        ]} />
+      <p>
+        You've captured the handshake. You've prepared your wordlist. Now comes the moment of truth — 
+        <strong>testing every password in your list against the captured handshake</strong>. For each 
+        password guess, the cracking tool computes: <em>Password + SSID → PMK → PTK → MIC</em>, then 
+        compares the computed MIC with the one captured in the handshake. Match? Password found! 
+        No match? Try the next one.
+      </p>
 
-        <InfoBox type="tip" title="Password Found!">
-          <p>The password is shown after <code className="inline-code">KEY FOUND!</code>. In this example, the WiFi password is <code className="inline-code">password123</code>. You can now connect to the network using this password.</p>
-        </InfoBox>
-      </div>
+      <Diagram title="What Happens for Each Password Guess">
+{`
+  For EACH password in your wordlist:
+  
+  "password123"  +  "TargetNetwork"  (SSID)
+        │                  │
+        ▼                  ▼
+  ┌─────────────────────────────────┐
+  │  PBKDF2 (4096 iterations)      │   ← This is why it's SLOW
+  │  Deliberately computationally   │      (anti-brute-force measure)
+  │  expensive                      │
+  └─────────────────────────────────┘
+                 │
+                 ▼
+         PMK (256-bit key)
+                 │
+                 ▼
+  PMK + ANonce + SNonce + MACs
+                 │
+                 ▼
+  ┌─────────────────────────────────┐
+  │  PRF (Pseudo-Random Function)   │
+  └─────────────────────────────────┘
+                 │
+                 ▼
+         PTK (512-bit key)
+                 │
+                 ├──► KCK (Key Confirmation Key)
+                 │          │
+                 │          ▼
+                 │    Compute MIC
+                 │          │
+                 │          ▼
+                 │    Compare with captured MIC
+                 │          │
+                 │          ├── MATCH? → PASSWORD FOUND! 🎉
+                 │          └── No match? → Next password...
+                 │
+                 └──► (TK and KEK not needed for cracking)
+`}
+      </Diagram>
 
-      <div className="topic-section">
-        <h2>Command Breakdown</h2>
-        <table className="info-table">
-          <thead>
-            <tr><th>Flag</th><th>Purpose</th></tr>
-          </thead>
-          <tbody>
-            <tr><td><code>-w /path/to/wordlist</code></td><td>Path to the wordlist file</td></tr>
-            <tr><td><code>-b AA:BB:CC:DD:EE:FF</code></td><td>BSSID of target network</td></tr>
-            <tr><td><code>capture.cap</code></td><td>The capture file containing the handshake</td></tr>
-            <tr><td><code>-l output.txt</code></td><td>Save the found key to a file</td></tr>
-          </tbody>
-        </table>
-      </div>
+      {/* ============================================================ */}
+      {/* SECTION: Aircrack-ng                                         */}
+      {/* ============================================================ */}
+      <h2>🖥️ Method 1: Cracking with Aircrack-ng (CPU)</h2>
 
-      <div className="topic-section">
-        <h2>Faster Cracking with Hashcat (GPU)</h2>
-        <p>Hashcat uses your GPU for cracking, which is <strong>10-100x faster</strong> than aircrack-ng (CPU only).</p>
+      <p>
+        <strong>Aircrack-ng</strong> is the easiest and most accessible way to crack WPA. It uses 
+        your CPU, which means it works everywhere — no special GPU needed. The downside? It's 
+        relatively slow: typically 3,000-5,000 passwords per second on a modern CPU.
+      </p>
 
-        <h3>Step 1: Convert .cap to .hc22000 format</h3>
-        <Terminal title="Convert Capture File" lines={[
-          [{ type: 'comment', text: '# Install hcxtools if not present' }],
-          [{ type: 'prompt', text: '$ ' }, { type: 'command', text: 'sudo apt install ' }, { type: 'string', text: 'hcxtools' }],
-          [{ type: 'output', text: '' }],
-          [{ type: 'comment', text: '# Convert .cap to hashcat format' }],
-          [{ type: 'prompt', text: '$ ' }, { type: 'command', text: 'hcxpcapngtool ' }, { type: 'flag', text: '-o ' }, { type: 'path', text: 'hash.hc22000 ' }, { type: 'string', text: 'wpa_handshake-01.cap' }],
-        ]} />
+      <Terminal lines={[
+        { segments: [{ text: '# Basic WPA2 crack with rockyou.txt', type: 'comment' }] },
+        { segments: [{ text: '└─$ ', type: 'prompt' }, { text: 'sudo aircrack-ng -w /usr/share/wordlists/rockyou.txt -b AA:BB:CC:DD:EE:FF wpa_handshake-01.cap', type: 'command' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '                                 Aircrack-ng 1.7', type: 'output' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '      [00:01:52] 35684/14344392 keys tested (3220.15 k/s)', type: 'output' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '      Time left: 1 hour, 13 minutes, 45 seconds              0.25%', type: 'output' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '                        Current passphrase: michael2001', type: 'output' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '      Master Key     : A1 B2 C3 D4 E5 F6 ...', type: 'output' }] },
+        { segments: [{ text: '      Transient Key  : 1A 2B 3C 4D 5E 6F ...', type: 'output' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# ... time passes ... then:', type: 'comment' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '                    KEY FOUND! [ password123 ]', type: 'highlight' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '      Master Key     : A1 B2 C3 D4 E5 F6 78 9A BC DE F0 12 34 56 78 9A', type: 'output' }] },
+        { segments: [{ text: '      Transient Key  : 1A 2B 3C 4D 5E 6F 78 9A BC DE F0 12 34 56 78 9A', type: 'output' }] },
+        { segments: [{ text: '                       AB CD EF 01 23 45 67 89 AB CD EF 01 23 45 67 89', type: 'output' }] },
+        { segments: [{ text: '      EAPOL HMAC     : AB CD EF 01 23 45 67 89 AB CD EF 01 23 45 67 89', type: 'output' }] },
+      ]} />
 
-        <h3>Step 2: Run Hashcat</h3>
-        <Terminal title="Hashcat GPU Cracking" lines={[
-          [{ type: 'comment', text: '# Dictionary attack with GPU' }],
-          [{ type: 'prompt', text: '$ ' }, { type: 'command', text: 'hashcat ' }, { type: 'flag', text: '-m 22000 ' }, { type: 'path', text: 'hash.hc22000 ' }, { type: 'path', text: '/usr/share/wordlists/rockyou.txt' }],
-          [{ type: 'output', text: '' }],
-          [{ type: 'output', text: 'Session...........: hashcat' }],
-          [{ type: 'output', text: 'Status...........: Running' }],
-          [{ type: 'output', text: 'Hash.Mode........: 22000 (WPA-PBKDF2-PMKID+EAPOL)' }],
-          [{ type: 'output', text: 'Speed.#1.........:   125.3 kH/s' }],
-          [{ type: 'output', text: '' }],
-          [{ type: 'output', text: 'hash.hc22000:' }, { type: 'highlight', text: 'password123' }],
-          [{ type: 'output', text: '' }],
-          [{ type: 'output', text: 'Status...........: Cracked' }],
-        ]} />
+      <InfoBox type="success">
+        <strong>Password found!</strong> The WiFi password is shown after <code>KEY FOUND!</code>. 
+        In this example: <code>password123</code>. You can now connect to the network using this password.
+      </InfoBox>
 
-        <h3>Hashcat with Rules (Smarter Attacks)</h3>
-        <Terminal title="Hashcat with Rules" lines={[
-          [{ type: 'comment', text: '# Use best64 rule to add variations (numbers, caps, etc.)' }],
-          [{ type: 'prompt', text: '$ ' }, { type: 'command', text: 'hashcat ' }, { type: 'flag', text: '-m 22000 ' }, { type: 'path', text: 'hash.hc22000 ' }, { type: 'path', text: '/usr/share/wordlists/rockyou.txt ' }, { type: 'flag', text: '-r ' }, { type: 'path', text: '/usr/share/hashcat/rules/best64.rule' }],
-          [{ type: 'comment', text: '# This tests each word + variations: Password, password1, PASSWORD, p@ssword, etc.' }],
-        ]} />
-      </div>
+      <h3>Aircrack-ng Command Options</h3>
+      <table style={{ width: '100%', borderCollapse: 'collapse', margin: '16px 0' }}>
+        <thead>
+          <tr>
+            <th style={{ padding: '10px', borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>Flag</th>
+            <th style={{ padding: '10px', borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>Purpose</th>
+            <th style={{ padding: '10px', borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style={{ padding: '8px' }}><code>-w</code></td><td style={{ padding: '8px' }}>Path to wordlist (or <code>-</code> for stdin)</td><td style={{ padding: '8px' }}><code>-w rockyou.txt</code></td></tr>
+          <tr><td style={{ padding: '8px' }}><code>-b</code></td><td style={{ padding: '8px' }}>Target BSSID (router MAC)</td><td style={{ padding: '8px' }}><code>-b AA:BB:CC:DD:EE:FF</code></td></tr>
+          <tr><td style={{ padding: '8px' }}><code>-l</code></td><td style={{ padding: '8px' }}>Save found key to file</td><td style={{ padding: '8px' }}><code>-l found_key.txt</code></td></tr>
+          <tr><td style={{ padding: '8px' }}><code>-e</code></td><td style={{ padding: '8px' }}>Target ESSID (network name)</td><td style={{ padding: '8px' }}><code>-e TargetNetwork</code></td></tr>
+        </tbody>
+      </table>
 
-      <div className="topic-section">
-        <h2>Speed Comparison</h2>
-        <table className="info-table">
-          <thead>
-            <tr><th>Tool</th><th>Hardware</th><th>Speed (keys/sec)</th></tr>
-          </thead>
-          <tbody>
-            <tr><td><strong>aircrack-ng</strong></td><td>CPU (i7)</td><td>~3,000-5,000</td></tr>
-            <tr><td><strong>hashcat</strong></td><td>GPU (RTX 3070)</td><td>~300,000-500,000</td></tr>
-            <tr><td><strong>hashcat</strong></td><td>GPU (RTX 4090)</td><td>~1,000,000+</td></tr>
-          </tbody>
-        </table>
+      {/* ============================================================ */}
+      {/* SECTION: Hashcat (GPU)                                       */}
+      {/* ============================================================ */}
+      <h2>⚡ Method 2: Cracking with Hashcat (GPU)</h2>
 
-        <InfoBox type="note">
-          <p>With aircrack-ng, rockyou.txt (~14M passwords) takes about 45 minutes. With hashcat on a decent GPU, it takes under a minute.</p>
-        </InfoBox>
-      </div>
+      <p>
+        <strong>Hashcat</strong> uses your GPU (graphics card) for cracking, which is 
+        <strong> 10x to 100x faster</strong> than aircrack-ng on CPU. A mid-range GPU can test 
+        300,000-500,000 passwords per second. A high-end GPU like an RTX 4090 can exceed 
+        1,000,000 per second. The tradeoff? You need proper GPU drivers installed (CUDA for NVIDIA 
+        or OpenCL for AMD).
+      </p>
 
-      <Troubleshooting>
-        <TroubleItem issue="KEY NOT FOUND — exhausted wordlist">
-          <div className="solution">Solution:</div>
-          <p>The password is not in your wordlist. Options:</p>
-          <ul style={{ paddingLeft: 20, marginTop: 8 }}>
-            <li>Try a bigger wordlist (download from SecLists or internet)</li>
-            <li>Create a targeted wordlist with crunch based on what you know about the target</li>
-            <li>Use hashcat with rules to generate variations</li>
-            <li>Accept that strong random passwords can't be cracked this way</li>
-          </ul>
-        </TroubleItem>
-        <TroubleItem issue="'Passphrase must have between 8 and 63 characters'">
-          <p>WPA passwords must be 8-63 characters. aircrack-ng is warning that some entries in your wordlist are shorter than 8 chars and will be skipped. This is normal — the tool just skips them.</p>
-        </TroubleItem>
-        <TroubleItem issue="Hashcat says 'No hashes loaded'">
-          <div className="solution">Solution:</div>
-          <p>The conversion failed or the hash file is empty. Re-run <code className="inline-code">hcxpcapngtool</code> and make sure it shows that it found handshakes. If not, your .cap file doesn't contain a valid handshake.</p>
-        </TroubleItem>
-        <TroubleItem issue="Hashcat 'CUDA/OpenCL not found'">
-          <div className="solution">Solution:</div>
-          <p>GPU drivers not installed. In a VM, GPU passthrough is complicated. For VM users, stick with aircrack-ng. For native Linux, install NVIDIA drivers:</p>
-          <Terminal title="Install NVIDIA" lines={[
-            [{ type: 'prompt', text: '$ ' }, { type: 'command', text: 'sudo apt install ' }, { type: 'string', text: 'nvidia-driver nvidia-cuda-toolkit' }],
-          ]} />
-        </TroubleItem>
-        <TroubleItem issue="Cracking is extremely slow">
-          <div className="solution">Solution:</div>
-          <p>WPA cracking is intentionally slow because PBKDF2 hashing is CPU-intensive. To speed up:</p>
-          <ul style={{ paddingLeft: 20, marginTop: 8 }}>
-            <li>Use hashcat with a GPU instead of aircrack-ng</li>
-            <li>Use a smaller, more targeted wordlist</li>
-            <li>Use rules instead of a massive wordlist</li>
-          </ul>
-        </TroubleItem>
-      </Troubleshooting>
+      <h3>Step 1: Convert .cap to Hashcat format</h3>
+      <Terminal lines={[
+        { segments: [{ text: '# Hashcat can\'t read .cap files directly', type: 'comment' }] },
+        { segments: [{ text: '# Convert to .hc22000 format using hcxpcapngtool', type: 'comment' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# Install hcxtools if not present', type: 'comment' }] },
+        { segments: [{ text: '└─$ ', type: 'prompt' }, { text: 'sudo apt install hcxtools', type: 'command' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# Convert the capture file', type: 'comment' }] },
+        { segments: [{ text: '└─$ ', type: 'prompt' }, { text: 'hcxpcapngtool -o hash.hc22000 wpa_handshake-01.cap', type: 'command' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: 'Networks detected: 1', type: 'output' }] },
+        { segments: [{ text: 'EAPOL pairs written to hash.hc22000: 1', type: 'highlight' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# If it says "0 pairs written" → your capture doesn\'t have a valid handshake', type: 'comment' }] },
+      ]} />
+
+      <h3>Step 2: Run Hashcat</h3>
+      <Terminal lines={[
+        { segments: [{ text: '# Dictionary attack with GPU', type: 'comment' }] },
+        { segments: [{ text: '└─$ ', type: 'prompt' }, { text: 'hashcat -m 22000 hash.hc22000 /usr/share/wordlists/rockyou.txt', type: 'command' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: 'hashcat (v6.2.6) starting', type: 'output' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: 'OpenCL API (OpenCL 3.0 CUDA 12.2.148) - Platform #1 [NVIDIA Corporation]', type: 'output' }] },
+        { segments: [{ text: '* Device #1: NVIDIA GeForce RTX 3070, 6144/8192 MB, 46MCU', type: 'output' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: 'Hash.Mode........: 22000 (WPA-PBKDF2-PMKID+EAPOL)', type: 'output' }] },
+        { segments: [{ text: 'Hash.Target......: hash.hc22000', type: 'output' }] },
+        { segments: [{ text: 'Speed.#1.........:   452.3 kH/s (8.12ms) @ Accel:64 Loops:128', type: 'highlight' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# 452,300 passwords per second! vs ~3,000 with aircrack-ng', type: 'comment' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: 'hash.hc22000:password123', type: 'highlight' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: 'Session..........: hashcat', type: 'output' }] },
+        { segments: [{ text: 'Status...........: Cracked', type: 'highlight' }] },
+      ]} />
+
+      <h3>Hashcat with Rules — Smarter than Brute Force</h3>
+      <p>
+        Rules tell hashcat to <em>mutate</em> each word in the wordlist. For example, for the word 
+        "password", rules might test: Password, PASSWORD, password1, password!, p@ssword, 
+        passw0rd, drowssap (reversed), etc. This dramatically increases coverage without needing 
+        a larger wordlist.
+      </p>
+
+      <Terminal lines={[
+        { segments: [{ text: '# Use the "best64" rule — tests 64 variations of each word', type: 'comment' }] },
+        { segments: [{ text: '└─$ ', type: 'prompt' }, { text: 'hashcat -m 22000 hash.hc22000 /usr/share/wordlists/rockyou.txt -r /usr/share/hashcat/rules/best64.rule', type: 'command' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# Each word gets 64 variations: capital, numbers, special chars, etc.', type: 'comment' }] },
+        { segments: [{ text: '# 14M words × 64 rules = 921M effective passwords tested!', type: 'comment' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# More aggressive: rockyou-30000 rule', type: 'comment' }] },
+        { segments: [{ text: '└─$ ', type: 'prompt' }, { text: 'hashcat -m 22000 hash.hc22000 /usr/share/wordlists/rockyou.txt -r /usr/share/hashcat/rules/rockyou-30000.rule', type: 'command' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# Common hashcat rules available:', type: 'comment' }] },
+        { segments: [{ text: '# best64.rule         → 64 variations (fast, good coverage)', type: 'comment' }] },
+        { segments: [{ text: '# d3ad0ne.rule        → 34,000 variations (thorough)', type: 'comment' }] },
+        { segments: [{ text: '# rockyou-30000.rule  → 30,000 variations (very thorough)', type: 'comment' }] },
+        { segments: [{ text: '# dive.rule           → 99,000 variations (exhaustive)', type: 'comment' }] },
+      ]} />
+
+      <InfoBox type="note">
+        <strong>What rules actually do:</strong> When hashcat applies the <code>best64</code> rule 
+        to the word "admin", it tests variations like:
+        <br />admin, Admin, ADMIN, admin1, admin2, admin!, admin@, admin123, 
+        nimda (reversed), 1admin, @admin, adm1n, and 50+ more.
+      </InfoBox>
+
+      {/* ============================================================ */}
+      {/* SECTION: Speed Comparison                                    */}
+      {/* ============================================================ */}
+      <h2>📊 Speed Comparison</h2>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', margin: '16px 0' }}>
+        <thead>
+          <tr>
+            <th style={{ padding: '10px', borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>Tool</th>
+            <th style={{ padding: '10px', borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>Hardware</th>
+            <th style={{ padding: '10px', borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>Speed (keys/sec)</th>
+            <th style={{ padding: '10px', borderBottom: '2px solid var(--border-color)', textAlign: 'left' }}>rockyou.txt Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style={{ padding: '8px' }}>aircrack-ng</td><td style={{ padding: '8px' }}>CPU (i5)</td><td style={{ padding: '8px' }}>~2,000</td><td style={{ padding: '8px' }}>~2 hours</td></tr>
+          <tr><td style={{ padding: '8px' }}>aircrack-ng</td><td style={{ padding: '8px' }}>CPU (i9)</td><td style={{ padding: '8px' }}>~5,000</td><td style={{ padding: '8px' }}>~48 minutes</td></tr>
+          <tr><td style={{ padding: '8px' }}>hashcat</td><td style={{ padding: '8px' }}>GPU (GTX 1660)</td><td style={{ padding: '8px' }}>~150,000</td><td style={{ padding: '8px' }}>~1.5 minutes</td></tr>
+          <tr><td style={{ padding: '8px' }}>hashcat</td><td style={{ padding: '8px' }}>GPU (RTX 3070)</td><td style={{ padding: '8px' }}>~450,000</td><td style={{ padding: '8px' }}>~32 seconds</td></tr>
+          <tr><td style={{ padding: '8px' }}>hashcat</td><td style={{ padding: '8px' }}>GPU (RTX 4090)</td><td style={{ padding: '8px' }}>~1,200,000</td><td style={{ padding: '8px' }}>~12 seconds</td></tr>
+        </tbody>
+      </table>
+
+      <InfoBox type="tip">
+        <strong>VM users:</strong> If you're running Kali in a VM (VirtualBox/VMware), your GPU 
+        is not passed through by default. Hashcat will fall back to CPU mode and be very slow. 
+        Options: (1) Use aircrack-ng instead, (2) Set up GPU passthrough, (3) Copy the hash file 
+        to your host OS and run hashcat there.
+      </InfoBox>
+
+      {/* ============================================================ */}
+      {/* SECTION: Edge Cases                                          */}
+      {/* ============================================================ */}
+      <h2>⚠️ Edge Cases & Troubleshooting</h2>
+
+      <h3>Edge Case: "KEY NOT FOUND" — exhausted wordlist</h3>
+      <Terminal lines={[
+        { segments: [{ text: '# aircrack-ng has tested every password — none matched', type: 'comment' }] },
+        { segments: [{ text: 'KEY NOT FOUND', type: 'output' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# This means the password is NOT in your wordlist.', type: 'comment' }] },
+        { segments: [{ text: '# Options:', type: 'comment' }] },
+        { segments: [{ text: '# 1. Try a bigger wordlist (download CrackStation list)', type: 'comment' }] },
+        { segments: [{ text: '# 2. Create a targeted wordlist with crunch', type: 'comment' }] },
+        { segments: [{ text: '# 3. Use hashcat rules for password mutations', type: 'comment' }] },
+        { segments: [{ text: '# 4. Try WPS attack (reaver) if WPS is enabled', type: 'comment' }] },
+        { segments: [{ text: '# 5. Accept that a strong random password = uncrackable', type: 'comment' }] },
+      ]} />
+
+      <h3>Edge Case: "Passphrase must have between 8 and 63 characters"</h3>
+      <p>
+        This is just a warning — aircrack-ng skips passwords shorter than 8 characters (WPA minimum). 
+        It's normal when using general-purpose wordlists. The tool continues with valid-length passwords.
+      </p>
+
+      <h3>Edge Case: Hashcat "No hashes loaded"</h3>
+      <Terminal lines={[
+        { segments: [{ text: '# The .hc22000 file is empty or conversion failed', type: 'comment' }] },
+        { segments: [{ text: '# Check if the file has content:', type: 'comment' }] },
+        { segments: [{ text: '└─$ ', type: 'prompt' }, { text: 'cat hash.hc22000', type: 'command' }] },
+        { segments: [{ text: '# If empty → recapture the handshake or re-convert', type: 'comment' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# Alternatively, use the older cap2hccapx converter:', type: 'comment' }] },
+        { segments: [{ text: '└─$ ', type: 'prompt' }, { text: 'cap2hccapx wpa_handshake-01.cap hash.hccapx', type: 'command' }] },
+        { segments: [{ text: '└─$ ', type: 'prompt' }, { text: 'hashcat -m 2500 hash.hccapx /usr/share/wordlists/rockyou.txt', type: 'command' }] },
+      ]} />
+
+      <h3>Edge Case: Hashcat "CUDA/OpenCL not found"</h3>
+      <Terminal lines={[
+        { segments: [{ text: '# GPU drivers not installed. For NVIDIA:', type: 'comment' }] },
+        { segments: [{ text: '└─$ ', type: 'prompt' }, { text: 'sudo apt install nvidia-driver nvidia-cuda-toolkit', type: 'command' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# For AMD:', type: 'comment' }] },
+        { segments: [{ text: '└─$ ', type: 'prompt' }, { text: 'sudo apt install mesa-opencl-icd', type: 'command' }] },
+        { segments: [{ text: '', type: 'output' }] },
+        { segments: [{ text: '# In a VM: GPU passthrough is complex.', type: 'comment' }] },
+        { segments: [{ text: '# Easier: copy hash file to host and run hashcat there', type: 'comment' }] },
+      ]} />
+
+      <h3>Edge Case: Cracking is extremely slow</h3>
+      <p>
+        WPA2 uses PBKDF2 with 4096 iterations — it's intentionally slow. This is by design to 
+        make brute-force impractical. Strategies to speed up:
+      </p>
+      <ul>
+        <li><strong>Use GPU (hashcat)</strong> instead of CPU (aircrack-ng) — 100x faster</li>
+        <li><strong>Use targeted wordlists</strong> — fewer passwords to test</li>
+        <li><strong>Use rules</strong> — smarter mutations instead of blind brute force</li>
+        <li><strong>Pre-compute PMK</strong> with <code>airolib-ng</code> for specific SSIDs</li>
+      </ul>
+
+      <InfoBox type="success">
+        <strong>Key Takeaways:</strong>
+        <ul>
+          <li><strong>aircrack-ng:</strong> Easy, CPU-based, ~3K-5K passwords/sec. Good for quick checks.</li>
+          <li><strong>hashcat:</strong> GPU-based, ~150K-1.2M passwords/sec. Use for serious cracking.</li>
+          <li><strong>Rules:</strong> Multiply your wordlist effectiveness by testing mutations of each word.</li>
+          <li>If the password isn't found, you need a better wordlist — not more time.</li>
+          <li>Strong random passwords (16+ chars) make WPA2 effectively uncrackable.</li>
+        </ul>
+      </InfoBox>
     </div>
   );
-}
+};
+
+export default WPACracking;

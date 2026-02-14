@@ -5,9 +5,15 @@ export default function Terminal({ title = "Terminal", lines = [] }) {
 
   const getCommandText = () => {
     return lines
-      .filter(l => l.some && l.some(seg => seg.type === 'command' || seg.type === 'prompt'))
-      .map(l => l.filter(seg => seg.type === 'command' || seg.type === 'flag' || seg.type === 'string' || seg.type === 'path' || seg.type === 'number' || seg.type === 'highlight')
-        .map(seg => seg.text).join(''))
+      .map(line => {
+        // Handle both {segments: [...]} and direct array formats
+        const segments = line?.segments || (Array.isArray(line) ? line : []);
+        return segments
+          .filter(seg => seg.type === 'command' || seg.type === 'flag' || seg.type === 'string' || seg.type === 'path' || seg.type === 'number' || seg.type === 'highlight')
+          .map(seg => seg.text)
+          .join('');
+      })
+      .filter(text => text.length > 0)
       .join('\n');
   };
 
@@ -31,13 +37,18 @@ export default function Terminal({ title = "Terminal", lines = [] }) {
         </button>
       </div>
       <div className="terminal-body">
-        {lines.map((line, i) => (
-          <div key={i} className="terminal-line">
-            {Array.isArray(line) ? line.map((seg, j) => (
-              <span key={j} className={seg.type || ''}>{seg.text}</span>
-            )) : <span className="output">{line}</span>}
-          </div>
-        ))}
+        {lines.map((line, i) => {
+          // Handle different line formats
+          const segments = line?.segments || (Array.isArray(line) ? line : null);
+          
+          return (
+            <div key={i} className="terminal-line">
+              {segments ? segments.map((seg, j) => (
+                <span key={j} className={seg.type || ''}>{seg.text}</span>
+              )) : <span className="output">{line}</span>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -131,7 +131,8 @@
   min-height: 100vh;
 }
 
-.content-area {
+.content-area,
+.page-content {
   max-width: 900px;
   margin: 0 auto;
   padding: 40px 48px 80px;
@@ -660,7 +661,8 @@
   .main-content {
     margin-left: 280px;
   }
-  .content-area {
+  .content-area,
+  .page-content {
     padding: 40px 32px 80px;
   }
 }
@@ -685,7 +687,8 @@
     margin-left: 0;
   }
   
-  .content-area {
+  .content-area,
+  .page-content {
     padding: 70px 20px 50px;
     max-width: 100%;
   }
@@ -742,7 +745,8 @@
 }
 
 @media (max-width: 480px) {
-  .content-area {
+  .content-area,
+  .page-content {
     padding: 70px 16px 40px;
   }
   
